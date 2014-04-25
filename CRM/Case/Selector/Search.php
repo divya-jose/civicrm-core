@@ -75,6 +75,7 @@ class CRM_Case_Selector_Search extends CRM_Core_Selector_Base {
     'case_type',
     'case_role',
     'phone',
+    'filter',
   );
 
   /**
@@ -319,76 +320,77 @@ class CRM_Case_Selector_Search extends CRM_Core_Selector_Base {
     $scheduledInfo = array();
 
     while ($result->fetch()) {
-      $row = array();
-      // the columns we are interested in
-      foreach (self::$_properties as $property) {
-        if (isset($result->$property)) {
-          $row[$property] = $result->$property;
+      if($result->filter == 0) {
+        $row = array();
+        // the columns we are interested in
+        foreach (self::$_properties as $property) {
+          if (isset($result->$property)) {
+            $row[$property] = $result->$property;
+          }
         }
+
+        $isDeleted = FALSE;
+        if ($result->case_deleted) {
+          $isDeleted = TRUE;
+          $row['case_status_id'] = empty($row['case_status_id']) ? "" : $row['case_status_id'] . '<br />(deleted)';
+        }
+
+        $scheduledInfo['case_id'][] = $result->case_id;
+        $scheduledInfo['contact_id'][] = $result->contact_id;
+        $scheduledInfo['case_deleted'] = $result->case_deleted;
+        $row['checkbox'] = CRM_Core_Form::CB_PREFIX . $result->case_id;
+
+        $links = self::links($isDeleted, $this->_key);
+        $row['action'] = CRM_Core_Action::formLink($links['primaryActions'],
+          $mask, array(
+            'id' => $result->case_id,
+            'cid' => $result->contact_id,
+            'cxt' => $this->_context,
+          ),
+          ts('more'),
+          FALSE,
+          'case.selector.actions',
+          'Case',
+          $result->case_id
+        );
+        $row['moreActions'] = CRM_Core_Action::formLink(CRM_Utils_Array::value('moreActions', $links),
+          $mask, array(
+            'id' => $result->case_id,
+            'cid' => $result->contact_id,
+            'cxt' => $this->_context,
+          ),
+          ts('more'),
+          TRUE,
+          'case.selector.moreActions',
+          'Case',
+          $result->case_id
+        );
+
+        $row['contact_type'] = CRM_Contact_BAO_Contact_Utils::getImage($result->contact_sub_type ?
+          $result->contact_sub_type : $result->contact_type
+        );
+
+        //adding case manager to case selector.CRM-4510.
+        $caseType = CRM_Case_BAO_Case::getCaseType($result->case_id, 'name');
+        $caseManagerContact = CRM_Case_BAO_Case::getCaseManagerContact($caseType, $result->case_id);
+
+        if (!empty($caseManagerContact)) {
+          $row['casemanager_id'] = CRM_Utils_Array::value('casemanager_id', $caseManagerContact);
+          $row['casemanager'] = CRM_Utils_Array::value('casemanager', $caseManagerContact);
+        }
+
+        if (isset($result->case_status_id) &&
+          array_key_exists($result->case_status_id, $caseStatus)
+        ) {
+          $row['class'] = "status-urgent";
+        }
+        else {
+          $row['class'] = "status-normal";
+        }
+
+        $rows[$result->case_id] = $row;
       }
-
-      $isDeleted = FALSE;
-      if ($result->case_deleted) {
-        $isDeleted = TRUE;
-        $row['case_status_id'] = empty($row['case_status_id']) ? "" : $row['case_status_id'] . '<br />(deleted)';
-      }
-
-      $scheduledInfo['case_id'][] = $result->case_id;
-      $scheduledInfo['contact_id'][] = $result->contact_id;
-      $scheduledInfo['case_deleted'] = $result->case_deleted;
-      $row['checkbox'] = CRM_Core_Form::CB_PREFIX . $result->case_id;
-
-      $links = self::links($isDeleted, $this->_key);
-      $row['action'] = CRM_Core_Action::formLink($links['primaryActions'],
-        $mask, array(
-          'id' => $result->case_id,
-          'cid' => $result->contact_id,
-          'cxt' => $this->_context,
-        ),
-        ts('more'),
-        FALSE,
-        'case.selector.actions',
-        'Case',
-        $result->case_id
-      );
-      $row['moreActions'] = CRM_Core_Action::formLink(CRM_Utils_Array::value('moreActions', $links),
-        $mask, array(
-          'id' => $result->case_id,
-          'cid' => $result->contact_id,
-          'cxt' => $this->_context,
-        ),
-        ts('more'),
-        TRUE,
-        'case.selector.moreActions',
-        'Case',
-        $result->case_id
-      );
-
-      $row['contact_type'] = CRM_Contact_BAO_Contact_Utils::getImage($result->contact_sub_type ?
-        $result->contact_sub_type : $result->contact_type
-      );
-
-      //adding case manager to case selector.CRM-4510.
-      $caseType = CRM_Case_BAO_Case::getCaseType($result->case_id, 'name');
-      $caseManagerContact = CRM_Case_BAO_Case::getCaseManagerContact($caseType, $result->case_id);
-
-      if (!empty($caseManagerContact)) {
-        $row['casemanager_id'] = CRM_Utils_Array::value('casemanager_id', $caseManagerContact);
-        $row['casemanager'] = CRM_Utils_Array::value('casemanager', $caseManagerContact);
-      }
-
-      if (isset($result->case_status_id) &&
-        array_key_exists($result->case_status_id, $caseStatus)
-      ) {
-        $row['class'] = "status-urgent";
-      }
-      else {
-        $row['class'] = "status-normal";
-      }
-
-      $rows[$result->case_id] = $row;
     }
-
     //retrive the scheduled & recent Activity type and date for selector
     if (!empty($scheduledInfo)) {
       $schdeduledActivity = CRM_Case_BAO_Case::getNextScheduledActivity($scheduledInfo, 'upcoming');

@@ -209,6 +209,10 @@ class CRM_Case_BAO_Query {
       $query->_tables['civicrm_case_contact'] = 1;
       $query->_tables['civicrm_case'] = 1;
     }
+    if (!empty($query->_returnProperties['filter'])) {
+      $query->_select['filter'] = "cov.filter as filter";
+      $query->_tables['civicrm_option_value'] = $query->_whereTables['civicrm_option_value'] = 1;
+    }
   }
 
   /**
@@ -576,6 +580,9 @@ case_relation_type.id = case_relationship.relationship_type_id )";
       case 'civicrm_case_tag':
         $from .= " $side JOIN civicrm_entity_tag as civicrm_case_tag ON ( civicrm_case_tag.entity_table = 'civicrm_case' AND civicrm_case_tag.entity_id = civicrm_case.id ) ";
         break;
+      case 'civicrm_option_value':
+        $from .= " LEFT JOIN civicrm_option_value cov ON cov.value = civicrm_case.case_type_id  ";
+        break;
     }
     return $from;
   }
@@ -614,6 +621,7 @@ case_relation_type.id = case_relationship.relationship_type_id )";
         'case_recent_activity_type' => 1,
         'case_scheduled_activity_date' => 1,
         'phone' => 1,
+        'filter' => 1,
         // 'case_scheduled_activity_type'=>      1
       );
 
